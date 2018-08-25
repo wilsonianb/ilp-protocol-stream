@@ -59,6 +59,8 @@ export interface ConnectionOpts {
   minExchangeRatePrecision?: number
   /** Inactivity timeout (milliseconds) */
   idleTimeout?: number
+  /** Don't send any packets (data or money) over this connection. False by default */
+  receiveOnly?: boolean
 }
 
 export interface FullConnectionOpts extends ConnectionOpts {
@@ -103,6 +105,7 @@ export class Connection extends EventEmitter {
   protected allowableReceiveExtra: BigNumber
   protected enablePadding: boolean
   protected maxBufferedData: number
+  protected receiveOnly: boolean
 
   protected idleTimeout: number
   protected lastActive: Date
@@ -154,6 +157,7 @@ export class Connection extends EventEmitter {
     this.minExchangeRatePrecision = opts.minExchangeRatePrecision || DEFAULT_MINIMUM_EXCHANGE_RATE_PRECISION
     this.idleTimeout = opts.idleTimeout || DEFAULT_IDLE_TIMEOUT
     this.lastActive = new Date()
+    this.receiveOnly = opts.receiveOnly || false
 
     this.nextPacketSequence = 1
     // TODO should streams be a Map or just an object?
@@ -303,7 +307,8 @@ export class Connection extends EventEmitter {
     // TODO should this inform the other side?
     const stream = new DataAndMoneyStream({
       id: this.nextStreamId,
-      isServer: this.isServer
+      isServer: this.isServer,
+      receiveOnly: this.receiveOnly
     })
     this.streams.set(this.nextStreamId, stream)
     this.log.debug(`created stream: ${this.nextStreamId}`)
@@ -770,7 +775,8 @@ export class Connection extends EventEmitter {
     this.log.info(`got new stream: ${streamId}`)
     const stream = new DataAndMoneyStream({
       id: streamId,
-      isServer: this.isServer
+      isServer: this.isServer,
+      receiveOnly: this.receiveOnly
     })
     this.streams.set(streamId, stream)
 
@@ -819,6 +825,9 @@ export class Connection extends EventEmitter {
    * @private
    */
   protected async startSendLoop () {
+    if (this.receiveOnly) {
+      return
+    }
     if (this.sending) {
       return
     }
