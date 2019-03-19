@@ -515,6 +515,23 @@ export class Connection extends EventEmitter {
       return sum
     }, new BigNumber(0))
     for (let frame of requestPacket.frames) {
+      if (frame instanceof StreamMoneyBlockedFrame) {
+        const streamId = frame.streamId.toNumber()
+        const stream = this.streams.get(streamId)!
+        if (stream.receiveExact && this.exchangeRate) {
+          const sendMax = frame.sendMax.dividedBy(this.exchangeRate).integerValue(BigNumber.ROUND_CEIL)
+          if (sendMax.isGreaterThanOrEqualTo(stream.receiveMax)) {
+            stream.setReceiveExact(false)
+            this.log.trace(`telling other side that stream ${stream.id} can receive ${stream.receiveMax}`)
+            responseFrames.push(new StreamMaxMoneyFrame(streamId, stream.receiveMax, stream.totalReceived))
+            throwFinalApplicationError()
+          } else {
+            // error and close stream?
+            throw new Error('Stream ${stream.id} cannot receive ${stream.totalReceived}, sendMax is only ${sendMax}')
+          }
+        }
+        continue
+      }
       if (!(frame instanceof StreamMoneyFrame)) {
         continue
       }
@@ -542,6 +559,18 @@ export class Connection extends EventEmitter {
 
         // TODO include error frame
         throwFinalApplicationError()
+      }
+
+      // Ensure that this amount isn't less than the stream wants to receive
+      if (stream.receiveExact) {
+        const minStreamCanReceive = stream._getAmountStreamCanReceive()
+          .integerValue(BigNumber.ROUND_CEIL)
+        if (streamAmount.isLessThan(minStreamCanReceive)) {
+          this.log.debug(`peer sent too little for stream: ${streamId}. got: ${streamAmount}, min receivable: ${minStreamCanReceive}`)
+          // Tell peer the stream can receive 0 unless sendMax >= receiveTotal
+          responseFrames.push(new StreamMaxMoneyFrame(streamId, 0, stream.totalReceived))
+          throwFinalApplicationError()
+        }
       }
 
       // Reject the packet if any of the streams is already closed

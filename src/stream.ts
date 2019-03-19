@@ -17,6 +17,7 @@ export interface SendOpts {
 }
 
 export interface ReceiveOpts {
+  exact?: boolean,
   timeout?: number
 }
 
@@ -51,6 +52,7 @@ export class DataAndMoneyStream extends Duplex {
   protected _totalReceived: BigNumber
   protected _sendMax: BigNumber
   protected _receiveMax: BigNumber
+  protected _receiveExact: boolean
   protected _outgoingHeldAmount: BigNumber
 
   protected closed: boolean
@@ -76,6 +78,7 @@ export class DataAndMoneyStream extends Duplex {
     this._totalReceived = new BigNumber(0)
     this._sendMax = new BigNumber(0)
     this._receiveMax = new BigNumber(0)
+    this._receiveExact = false
     this._outgoingHeldAmount = new BigNumber(0)
 
     this._sentEnd = false
@@ -133,6 +136,10 @@ export class DataAndMoneyStream extends Duplex {
    */
   get receiveMax (): string {
     return this._receiveMax.toString()
+  }
+
+  get receiveExact (): boolean {
+    return this._receiveExact
   }
 
   /**
@@ -224,7 +231,7 @@ export class DataAndMoneyStream extends Duplex {
    * Note that this is absolute, not relative so calling `setReceiveMax(100)` twice will only let the stream receive 100 units.
    * @fires money
    */
-  setReceiveMax (limit: BigNumber.Value): void {
+  setReceiveMax (limit: BigNumber.Value, exact?: boolean): void {
     if (this.closed) {
       throw new Error('Stream already closed')
     }
@@ -236,9 +243,17 @@ export class DataAndMoneyStream extends Duplex {
       this.log.debug(`cannot set receiveMax to ${limit} because the current limit is: ${this._receiveMax}`)
       throw new Error('Cannot decrease the receiveMax')
     }
+    if (exact !== undefined) {
+      this.setReceiveExact(exact)
+    }
     this.log.debug(`setting receiveMax to ${limit}`)
     this._receiveMax = new BigNumber(limit)
     this.emit('_maybe_start_send_loop')
+  }
+
+  setReceiveExact(exact: boolean): void {
+    this.log.debug(`setting receiveExact to ${exact}`)
+    this._receiveExact = exact
   }
 
   /**
@@ -308,7 +323,7 @@ export class DataAndMoneyStream extends Duplex {
       return Promise.resolve()
     }
 
-    this.setReceiveMax(limit)
+    this.setReceiveMax(limit, opts && opts.exact)
     await new Promise((resolve, reject) => {
       const self = this
       function moneyHandler () {
@@ -346,6 +361,19 @@ export class DataAndMoneyStream extends Duplex {
       this.on('money', moneyHandler)
       this.on('error', errorHandler)
       this.on('end', endHandler)
+    })
+  }
+
+  /**
+   * Set the total amount the stream will receive and wait for that amount to be received AFTER the sender has said they are will to send that amount.
+   * Note that this is absolute, not relative so calling `receiveTotal(100)` twice will only receive 100 units.
+   *
+   * This promise will only resolve when the absolute amount specified is reached, so lowering the `receiveMax` may cause this not to resolve.
+   */
+  async receiveExactly (limit: BigNumber.Value, opts?: ReceiveOpts): Promise<void> {
+    await this.receiveTotal(limit, {
+      exact: true,
+      timeout: (opts && opts.timeout) || DEFAULT_TIMEOUT
     })
   }
 

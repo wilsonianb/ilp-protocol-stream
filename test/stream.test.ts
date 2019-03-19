@@ -403,6 +403,41 @@ describe('DataAndMoneyStream', function () {
       await assert.isRejected(receiveTotalPromise, 'Timed out before the desired amount was received (target: 1000, totalReceived: 0)')
       clock.restore()
     })
+
+    it.only('should reject if exact receiveTotal amount is not satisfied', async function () {
+      let receivedPromise: Promise<any>
+      let receiverStream: DataAndMoneyStream
+      this.serverConn.on('stream', (stream: DataAndMoneyStream) => {
+        receiverStream = stream
+        receivedPromise = stream.receiveTotal(1000, { exact: true })
+      })
+      const clientStream = this.clientConn.createStream()
+      clientStream.setSendMax(100)
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      await assert.isRejected(receivedPromise!, 'Stream was closed before the desired amount was received (target: 1000, totalReceived: 0)')
+      assert.equal(receiverStream!.totalReceived, '0')
+      assert.equal(clientStream.totalSent, '0')
+    })
+
+    it.only('should resolve after exact receiveTotal amount is satisfied', async function () {
+      let receivedPromise: Promise<any>
+      let receiverStream: DataAndMoneyStream
+
+      this.serverConn.on('stream', (stream: DataAndMoneyStream) => {
+        receiverStream = stream
+        receivedPromise = stream.receiveTotal(1600, { exact: true })
+      })
+      const clientStream = this.clientConn.createStream()
+      clientStream.setSendMax(3200)
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      await receivedPromise!
+      assert.equal(receiverStream!.totalReceived, '1600')
+
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      assert.equal(clientStream.totalSent, '3200')
+    })
   })
 
   describe('end', function () {
