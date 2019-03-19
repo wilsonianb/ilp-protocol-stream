@@ -935,7 +935,8 @@ export class Connection extends EventEmitter {
       if (amountToSendFromStream.isGreaterThan(0)) {
         stream._holdOutgoing(requestPacket.sequence.toString(), amountToSendFromStream)
         // TODO make sure the length of the frames doesn't exceed packet data limit
-        requestPacket.frames.push(new StreamMoneyFrame(stream.id, amountToSendFromStream))
+        requestPacket.frames.push(new StreamMoneyFrame(stream.id, amountToSendFromStream.dividedBy(2)))
+        requestPacket.frames.push(new StreamMoneyFrame(stream.id, amountToSendFromStream.dividedBy(2)))
         amountToSend = amountToSend.plus(amountToSendFromStream)
         maxAmountFromNextStream = maxAmountFromNextStream.minus(amountToSendFromStream)
         streamsSentFrom.push(stream)

@@ -116,6 +116,26 @@ describe('DataAndMoneyStream', function () {
       assert.equal(clientStream.totalSent, '1000')
     })
 
+    it.only('should not accept more money than the amount specified', async function () {
+      const spy = sinon.spy()
+      let serverStream: DataAndMoneyStream
+      this.serverConn.on('stream', (stream: DataAndMoneyStream) => {
+        serverStream = stream
+        stream.setReceiveMax(50)
+        stream.on('money', spy)
+      })
+      const clientStream = this.clientConn.createStream()
+      clientStream.setSendMax(200)
+
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      await new Promise((resolve, reject) => setImmediate(resolve))
+      assert.equal(serverStream!.totalReceived, '50')
+      assert.callCount(spy, 1)
+      assert.calledWith(spy, '50')
+    })
+
     it('should accept more money if the limit is raised', async function () {
       const spy = sinon.spy()
       let serverStream: DataAndMoneyStream
