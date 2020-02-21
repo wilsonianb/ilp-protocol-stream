@@ -102,6 +102,30 @@ describe('DataAndMoneyStream', function () {
       assert.equal(clientStream.totalSent, '1000')
     })
 
+    it('should accept the amount specified', async function () {
+      const spy = sinon.spy()
+      let totalMoney: number = 0
+      this.serverConn.on('stream', (stream: DataAndMoneyStream) => {
+        stream.setReceiveMax(500)
+        stream.on('money', (amount) => {
+          spy(amount)
+          totalMoney += +amount
+        })
+      })
+      const clientStream = this.clientConn.createStream()
+      await clientStream.sendTotal(1000)
+      assert.callCount(spy, 1)
+      assert.calledWith(spy, '500')
+      assert.equal(clientStream.totalSent, '1000')
+      assert.equal(totalMoney, 500)
+      const clientStream2 = this.clientConn.createStream()
+      await clientStream2.sendTotal(1000)
+      assert.callCount(spy, 2)
+      assert.calledWith(spy, '500')
+      assert.equal(clientStream2.totalSent, '1000')
+      assert.equal(totalMoney, 1000)
+    })
+
     it('should accept money if the receiveMax is raised after an async call', async function () {
       const spy = sinon.spy()
       this.serverConn.on('stream', async (stream: DataAndMoneyStream) => {
