@@ -71,6 +71,8 @@ export class DataAndMoneyStream extends Duplex {
   protected _outgoingDataToRetry: { data: Buffer, offset: number }[]
   protected outgoingOffset: number
 
+  protected _startTime: number
+
   protected emittedEnd: boolean
   protected emittedClose: boolean
 
@@ -104,6 +106,8 @@ export class DataAndMoneyStream extends Duplex {
     this._remoteReceiveMax = MAX_REMOTE_RECEIVE
     // TODO should we have a different default?
     this._remoteMaxOffset = 16384 // 16kb
+
+    this._startTime = Date.now()
 
     this.emittedEnd = false
     this.emittedClose = false
@@ -193,6 +197,13 @@ export class DataAndMoneyStream extends Duplex {
     } else {
       return this['_writableState'].highWaterMark
     }
+  }
+
+  /**
+   * Timestamp of when stream was created.
+   */
+  get startTime (): number {
+    return this._startTime
   }
 
   /**

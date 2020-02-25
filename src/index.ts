@@ -7,11 +7,9 @@ import * as cryptoHelper from './crypto'
 import { Connection, ConnectionOpts } from './connection'
 import { Plugin } from './util/plugin-interface'
 
-const CONNECTION_ID_REGEX = /^[a-zA-Z0-9~_-]+$/
-
 export { Connection } from './connection'
 export { DataAndMoneyStream } from './stream'
-export { Server, ServerOpts, createServer } from './server'
+export { Server, ServerOpts, createServer, GenerateAddressSecretOpts } from './server'
 
 export interface CreateConnectionOpts extends ConnectionOpts {
   /** ILP Address of the server */

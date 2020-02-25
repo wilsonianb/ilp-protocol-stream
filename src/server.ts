@@ -5,12 +5,17 @@ import createLogger from 'ilp-logger'
 import * as cryptoHelper from './crypto'
 import { Connection, ConnectionOpts } from './connection'
 import { ServerConnectionPool } from './pool'
+import { Writer, Predictor } from 'oer-utils'
 import { Plugin } from './util/plugin-interface'
-
-const CONNECTION_ID_REGEX = /^[a-zA-Z0-9~_-]+$/
 
 export interface ServerOpts extends ConnectionOpts {
   serverSecret?: Buffer
+}
+
+export interface GenerateAddressSecretOpts {
+  connectionTag?: string,
+  receiptNonce?: Buffer,
+  receiptSecret?: Buffer
 }
 
 /**
@@ -121,18 +126,37 @@ export class Server extends EventEmitter {
    * Two different clients SHOULD NOT be given the same address and secret.
    *
    * @param connectionTag Optional connection identifier that will be appended to the ILP address and can be used to identify incoming connections. Can only include characters that can go into an ILP Address
+   * @param receiptNonce Optional nonce to include in STREAM receipts
+   * @param receiptSecret Optional secret to use for signing STREAM receipts
    */
-  generateAddressAndSecret (connectionTag?: string): { destinationAccount: string, sharedSecret: Buffer } {
+  generateAddressAndSecret (connectionTag?: string): { destinationAccount: string, sharedSecret: Buffer }
+  generateAddressAndSecret (opts?: GenerateAddressSecretOpts): { destinationAccount: string, sharedSecret: Buffer }
+  generateAddressAndSecret (opts?: any): { destinationAccount: string, sharedSecret: Buffer } {
     if (!this.connected) {
       throw new Error('Server must be connected to generate address and secret')
     }
     let token = base64url(cryptoHelper.generateToken())
-    if (connectionTag) {
-      if (!CONNECTION_ID_REGEX.test(connectionTag)) {
-        throw new Error('connectionTag can only include ASCII characters a-z, A-Z, 0-9, "_", "-", and "~"')
+
+    if (opts) {
+      if (typeof opts === 'object' && !opts.receiptNonce !== !opts.receiptSecret) {
+        throw new Error('receiptNonce and receiptSecret must accompany each other')
       }
-      token = token + '~' + connectionTag
+
+      const connectionTag = typeof opts === 'string' ? Buffer.from(opts, 'ascii') : Buffer.from(opts.connectionTag ? opts.connectionTag : '', 'ascii')
+      const receiptNonce = typeof opts === 'object' && opts.receiptNonce ? opts.receiptNonce : Buffer.alloc(0)
+      const receiptSecret = typeof opts === 'object' && opts.receiptSecret ? cryptoHelper.encryptReceiptSecret(this.serverSecret, opts.receiptSecret) : Buffer.alloc(0)
+
+      const predictor = new Predictor()
+      predictor.writeVarOctetString(connectionTag)
+      predictor.writeVarOctetString(receiptNonce)
+      predictor.writeVarOctetString(receiptSecret)
+      const writer = new Writer(predictor.length)
+      writer.writeVarOctetString(connectionTag)
+      writer.writeVarOctetString(receiptNonce)
+      writer.writeVarOctetString(receiptSecret)
+      token = token + '~' + base64url(writer.getBuffer())
     }
+
     const sharedSecret = cryptoHelper.generateSharedSecretFromToken(this.serverSecret, Buffer.from(token, 'ascii'))
     return {
       // TODO should this be called serverAccount or serverAddress instead?

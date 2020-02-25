@@ -100,7 +100,11 @@ const variants = Array.prototype.concat.apply([], [
   NUMBERS.map((pair) => ({
     name: 'frame:stream_data_blocked:offset:' + pair.name,
     frame: new Packet.StreamDataBlockedFrame(123, pair.value)
-  }))
+  })),
+  {
+    name: 'frame:stream_receipt',
+    frame: new Packet.StreamReceiptFrame(123, Buffer.from('foobar'))
+  }
 ])
 
 const fixtures = variants.map(function (params: any) {

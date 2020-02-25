@@ -2,9 +2,12 @@
 import { hmac, randomBytes } from './util/crypto-node'
 export {
   decrypt,
+  decryptReceiptSecret, // only in node, not browser
   encrypt,
+  encryptReceiptSecret, // only in node, not browser
   generateSharedSecretFromToken, // only in node, not browser
   hash,
+  hmac,
   randomBytes
 } from './util/crypto-node'
 

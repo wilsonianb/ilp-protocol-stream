@@ -21,11 +21,12 @@ import {
   ConnectionMaxStreamIdFrame,
   StreamMaxDataFrame,
   StreamDataBlockedFrame,
+  StreamReceiptFrame,
   ConnectionMaxDataFrame,
   ConnectionDataBlockedFrame,
   StreamMoneyBlockedFrame
 } from './packet'
-import { Reader } from 'oer-utils'
+import { Reader, Writer } from 'oer-utils'
 import { CongestionController } from './util/congestion'
 import { Plugin } from './util/plugin-interface'
 import {
@@ -67,6 +68,10 @@ export interface ConnectionOpts {
   enablePadding?: boolean,
   /** User-specified connection identifier that was passed into [`generateAddressAndSecret`]{@link Server#generateAddressAndSecret} */
   connectionTag?: string,
+  /** User-specified receipt nonce that was passed into [`generateAddressAndSecret`]{@link Server#generateAddressAndSecret} */
+  receiptNonce?: Buffer,
+  /** User-specified receipt secret that was passed into [`generateAddressAndSecret`]{@link Server#generateAddressAndSecret} */
+  receiptSecret?: Buffer,
   /** Maximum number of streams the other entity can have open at once. Defaults to 10 */
   maxRemoteStreams?: number,
   /** Number of bytes each connection can have in the buffer. Defaults to 65534 */
@@ -138,6 +143,8 @@ function defaultGetExpiry (): Date {
 export class Connection extends EventEmitter {
   /** Application identifier for a certain connection */
   readonly connectionTag?: string
+  protected readonly _receiptNonce?: Buffer
+  protected readonly _receiptSecret?: Buffer
 
   protected connectionId: string
   protected plugin: Plugin
@@ -206,6 +213,8 @@ export class Connection extends EventEmitter {
     this.allowableReceiveExtra = Rational.fromNumber(1.01, true)
     this.enablePadding = !!opts.enablePadding
     this.connectionTag = opts.connectionTag
+    this._receiptNonce = opts.receiptNonce
+    this._receiptSecret = opts.receiptSecret
     this.maxStreamId = 2 * (opts.maxRemoteStreams || DEFAULT_MAX_REMOTE_STREAMS)
     this.maxBufferedData = opts.connectionBufferSize || MAX_DATA_SIZE * 2
     this.minExchangeRatePrecision = opts.minExchangeRatePrecision || DEFAULT_MINIMUM_EXCHANGE_RATE_PRECISION
@@ -629,8 +638,20 @@ export class Connection extends EventEmitter {
     }
 
     // Add incoming amounts to each stream
+    const totalsReceived: Map<number, { totalReceived: string, startTime: number }> = new Map()
     for (let { stream, amount } of amountsToReceive) {
       stream._addToIncoming(amount)
+      totalsReceived.set(stream.id, {
+        totalReceived: stream.totalReceived,
+        startTime: stream.startTime
+      })
+    }
+
+    // Add receipt frame(s)
+    if (this._receiptNonce) {
+      for (let [streamId, stream] of totalsReceived) {
+        responseFrames.push(new StreamReceiptFrame(streamId, await this.createReceipt(streamId, stream.totalReceived, stream.startTime)))
+      }
     }
 
     // Tell peer about closed streams and how much each stream can receive
@@ -1113,6 +1134,15 @@ export class Connection extends EventEmitter {
       if (responsePacket.ilpPacketType === IlpPacketType.Fulfill) {
         for (let stream of streamsSentFrom) {
           stream._executeHold(requestPacket.sequence.toString())
+        }
+
+        for (let frame of responsePacket.frames) {
+          if (frame.type === FrameType.StreamReceipt) {
+            const stream = this.streams.get(frame.streamId.toNumber())
+            if (stream) {
+              stream.emit('receipt', frame.receipt)
+            }
+          }
         }
 
         // Update stats based on amount sent
@@ -1641,6 +1671,20 @@ export class Connection extends EventEmitter {
       requestPacket.frames.push(new ConnectionNewAddressFrame(this._sourceAccount))
       requestPacket.frames.push(new ConnectionAssetDetailsFrame(this._sourceAssetCode, this._sourceAssetScale))
     }
+  }
+
+  private async createReceipt (streamId: LongValue, totalReceived: LongValue, startTime: LongValue): Promise<Buffer> {
+    if (!this._receiptNonce || !this._receiptSecret) {
+      throw new Error('Nonce and secret required to create receipt')
+    }
+
+    const writer = new Writer()
+    writer.writeVarOctetString(this._receiptNonce)
+    writer.writeVarUInt(longFromValue(streamId, true))
+    writer.writeVarUInt(longFromValue(totalReceived, true))
+    writer.writeVarUInt(longFromValue(startTime, true))
+    writer.writeVarOctetString(await cryptoHelper.hmac(this._receiptSecret, writer.getBuffer()))
+    return Promise.resolve(writer.getBuffer())
   }
 }
 
