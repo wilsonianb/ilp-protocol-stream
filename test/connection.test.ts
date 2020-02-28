@@ -18,8 +18,8 @@ describe('Connection', function () {
   beforeEach(async function () {
     this.clientPlugin = new MockPlugin(0.5)
     this.serverPlugin = this.clientPlugin.mirror
-    this.receiptNonce = Buffer.from('nonce_123', 'ascii')
-    this.receiptSecret = Buffer.from('secret_123', 'ascii')
+    this.receiptNonce = Buffer.alloc(16)
+    this.receiptSecret = Buffer.alloc(32)
 
     this.server = await createServer({
       plugin: this.serverPlugin,
@@ -530,7 +530,7 @@ describe('Connection', function () {
 
     it('should get a receipt for each fulfilled packet', async function () {
       const spy = sinon.spy()
-      let streamStartTime: number
+      let streamStartTime: Long
       this.serverConn.on('stream', async (serverStream: DataAndMoneyStream) => {
         streamStartTime = serverStream.startTime
       })
@@ -539,13 +539,16 @@ describe('Connection', function () {
       await clientStream.sendTotal(1002)
 
       async function createReceipt(receiptNonce: Buffer, receiptSecret: Buffer, totalReceived: string): Promise<Buffer> {
-        const writer = new Writer()
-        writer.writeVarOctetString(receiptNonce)
-        writer.writeVarUInt(longFromValue(clientStream.id, true))
-        writer.writeVarUInt(longFromValue(totalReceived, true))
-        writer.writeVarUInt(longFromValue(streamStartTime!, true))
-        writer.writeVarOctetString(await hmac(receiptSecret, writer.getBuffer()))
-        return Promise.resolve(writer.getBuffer())
+        const data = new Writer(40)
+        data.writeOctetString(receiptNonce, 16)
+        data.writeUInt64(longFromValue(clientStream.id, true))
+        data.writeUInt64(longFromValue(totalReceived, true))
+        data.writeUInt64(longFromValue(streamStartTime, true))
+
+        const receipt = new Writer(72)
+        receipt.writeOctetString(await hmac(receiptSecret, data.getBuffer()), 32)
+        receipt.writeOctetString(data.getBuffer(), 40)
+        return Promise.resolve(receipt.getBuffer())
       }
 
       assert.calledTwice(spy)

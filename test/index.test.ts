@@ -154,8 +154,8 @@ describe('Server', function () {
     it('should accept receipt nonce and secret with or without connectionTag', async function () {
       await this.server.listen()
       const connectionTag = 'hello-there_123'
-      const receiptNonce = Buffer.from('nonce_123', 'ascii')
-      const receiptSecret = Buffer.from('secret_123', 'ascii')
+      const receiptNonce = Buffer.alloc(16)
+      const receiptSecret = Buffer.alloc(32)
       this.server.generateAddressAndSecret({ connectionTag, receiptNonce, receiptSecret })
       this.server.generateAddressAndSecret({ receiptNonce, receiptSecret })
     })

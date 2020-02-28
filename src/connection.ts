@@ -638,7 +638,7 @@ export class Connection extends EventEmitter {
     }
 
     // Add incoming amounts to each stream
-    const totalsReceived: Map<number, { totalReceived: string, startTime: number }> = new Map()
+    const totalsReceived: Map<number, { totalReceived: string, startTime: Long }> = new Map()
     for (let { stream, amount } of amountsToReceive) {
       stream._addToIncoming(amount)
       totalsReceived.set(stream.id, {
@@ -1678,13 +1678,16 @@ export class Connection extends EventEmitter {
       throw new Error('Nonce and secret required to create receipt')
     }
 
-    const writer = new Writer()
-    writer.writeVarOctetString(this._receiptNonce)
-    writer.writeVarUInt(longFromValue(streamId, true))
-    writer.writeVarUInt(longFromValue(totalReceived, true))
-    writer.writeVarUInt(longFromValue(startTime, true))
-    writer.writeVarOctetString(await cryptoHelper.hmac(this._receiptSecret, writer.getBuffer()))
-    return Promise.resolve(writer.getBuffer())
+    const data = new Writer(40)
+    data.writeOctetString(this._receiptNonce, 16)
+    data.writeUInt64(longFromValue(streamId, true))
+    data.writeUInt64(longFromValue(totalReceived, true))
+    data.writeUInt64(longFromValue(startTime, true))
+
+    const receipt = new Writer(72)
+    receipt.writeOctetString(await cryptoHelper.hmac(this._receiptSecret, data.getBuffer()), 32)
+    receipt.writeOctetString(data.getBuffer(), 40)
+    return Promise.resolve(receipt.getBuffer())
   }
 }
 
