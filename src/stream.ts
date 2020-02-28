@@ -442,7 +442,6 @@ export class DataAndMoneyStream extends Duplex {
     this._totalSent = this._totalSent.add(amount)
     delete this.holds[holdId]
     this.log.trace('executed holdId: %s for: %s', holdId, amount)
-    this.emit('outgoing_money', amount.toString())
 
     if (this._totalSent.greaterThanOrEqual(this._sendMax)) {
       this.log.debug('outgoing total sent')

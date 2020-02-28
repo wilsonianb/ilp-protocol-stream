@@ -535,7 +535,7 @@ describe('Connection', function () {
         streamStartTime = serverStream.startTime
       })
       const clientStream = this.clientConn.createStream()
-      clientStream.on('receipt', spy)
+      clientStream.on('outgoing_money', spy)
       await clientStream.sendTotal(1002)
 
       async function createReceipt(receiptNonce: Buffer, receiptSecret: Buffer, totalReceived: string): Promise<Buffer> {
@@ -552,8 +552,8 @@ describe('Connection', function () {
       }
 
       assert.calledTwice(spy)
-      assert.calledWith(spy.firstCall, await createReceipt(this.receiptNonce, this.receiptSecret, '500'))
-      assert.calledWith(spy.secondCall, await createReceipt(this.receiptNonce, this.receiptSecret, '501'))
+      assert.calledWith(spy.firstCall, '1000', '500', await createReceipt(this.receiptNonce, this.receiptSecret, '500'))
+      assert.calledWith(spy.secondCall, '2', '1', await createReceipt(this.receiptNonce, this.receiptSecret, '501'))
     })
   })
 
