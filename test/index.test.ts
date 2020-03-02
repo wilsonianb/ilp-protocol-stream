@@ -151,6 +151,11 @@ describe('Server', function () {
       assert.notCalled(spy)
     })
 
+    it('should throw an error if the connectionTag includes characters that cannot go into an ILP address', async function () {
+      await this.server.listen()
+      assert.throws(() => this.server.generateAddressAndSecret('invalid\n'), 'connectionTag can only include ASCII characters a-z, A-Z, 0-9, "_", "-", and "~"')
+    })
+
     it('should accept receipt nonce and secret with or without connectionTag', async function () {
       await this.server.listen()
       const connectionTag = 'hello-there_123'

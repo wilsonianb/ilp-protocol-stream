@@ -2,7 +2,6 @@ import createLogger from 'ilp-logger'
 import * as IlpPacket from 'ilp-packet'
 import { Connection, BuildConnectionOpts } from './connection'
 import * as cryptoHelper from './crypto'
-import { Reader } from 'oer-utils'
 
 const log = createLogger('ilp-protocol-stream:Pool')
 
@@ -40,7 +39,9 @@ export class ServerConnectionPool {
 
   async getConnection (
     id: string,
-    prepare: IlpPacket.IlpPrepare
+    prepare: IlpPacket.IlpPrepare,
+    receiptNonce?: Buffer,
+    receiptSecret?: Buffer
   ): Promise<Connection> {
     if (this.closedConnections.has(id)) {
       log.debug('got packet for connection that was already closed: %s', id)
@@ -55,31 +56,8 @@ export class ServerConnectionPool {
     const connectionPromise = (async () => {
       const sharedSecret = await this.getSharedSecret(id, prepare)
       // If we get here, that means it was a token + sharedSecret we created
-      let connectionTag: string | undefined
-      let receiptNonce: Buffer | undefined
-      let receiptSecret: Buffer | undefined
       const tilde = id.indexOf('~')
-      if (tilde !== -1) {
-        const reader = new Reader(Buffer.from(id.slice(tilde + 1), 'base64'))
-
-        if (reader.peekVarOctetString().length) {
-          connectionTag = reader.readVarOctetString().toString('ascii')
-        } else {
-          reader.skipVarOctetString()
-        }
-
-        if (reader.peekVarOctetString().length) {
-          receiptNonce = reader.readVarOctetString()
-        } else {
-          reader.skipVarOctetString()
-        }
-
-        if (reader.peekVarOctetString().length) {
-          receiptSecret = cryptoHelper.decryptReceiptSecret(this.serverSecret, reader.readVarOctetString())
-        } else {
-          reader.skipVarOctetString()
-        }
-      }
+      const connectionTag = tilde !== -1 ? id.slice(tilde + 1) : undefined
       const conn = await Connection.build({
         ...this.connectionOpts,
         sharedSecret,
