@@ -539,15 +539,15 @@ describe('Connection', function () {
       await clientStream.sendTotal(1002)
 
       async function createReceipt(receiptNonce: Buffer, receiptSecret: Buffer, totalReceived: string): Promise<Buffer> {
-        const data = new Writer(40)
+        const data = new Writer(33)
         data.writeOctetString(receiptNonce, 16)
-        data.writeUInt64(longFromValue(clientStream.id, true))
+        data.writeUInt8(clientStream.id)
         data.writeUInt64(longFromValue(totalReceived, true))
         data.writeUInt64(longFromValue(streamStartTime, true))
 
-        const receipt = new Writer(72)
+        const receipt = new Writer(65)
         receipt.writeOctetString(await hmac(receiptSecret, data.getBuffer()), 32)
-        receipt.writeOctetString(data.getBuffer(), 40)
+        receipt.writeOctetString(data.getBuffer(), 33)
         return Promise.resolve(receipt.getBuffer())
       }
 

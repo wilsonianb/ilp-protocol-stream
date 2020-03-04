@@ -1691,15 +1691,15 @@ export class Connection extends EventEmitter {
       throw new Error('Nonce and secret required to create receipt')
     }
 
-    const data = new Writer(40)
+    const data = new Writer(33)
     data.writeOctetString(this._receiptNonce, 16)
-    data.writeUInt64(longFromValue(streamId, true))
+    data.writeUInt8(streamId)
     data.writeUInt64(longFromValue(totalReceived, true))
     data.writeUInt64(longFromValue(startTime, true))
 
-    const receipt = new Writer(72)
+    const receipt = new Writer(65)
     receipt.writeOctetString(await cryptoHelper.hmac(this._receiptSecret, data.getBuffer()), 32)
-    receipt.writeOctetString(data.getBuffer(), 40)
+    receipt.writeOctetString(data.getBuffer(), 33)
     return Promise.resolve(receipt.getBuffer())
   }
 }

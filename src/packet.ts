@@ -210,7 +210,7 @@ export abstract class BaseFrame {
         contents.writeVarOctetString(Buffer.from(value, 'utf8'))
       } else if (Buffer.isBuffer(value)) {
         if (prop === 'receipt') {
-          contents.writeOctetString(value, 72)
+          contents.writeOctetString(value, 65)
         } else {
           contents.writeVarOctetString(value)
         }
@@ -506,7 +506,7 @@ export class StreamReceiptFrame extends BaseFrame {
 
   static fromContents (reader: Reader): StreamReceiptFrame {
     const streamId = reader.readVarUIntLong()
-    const receipt = reader.readOctetString(72)
+    const receipt = reader.readOctetString(65)
     return new StreamReceiptFrame(streamId, receipt)
   }
 
