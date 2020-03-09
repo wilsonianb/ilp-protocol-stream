@@ -72,6 +72,7 @@ export class DataAndMoneyStream extends Duplex {
   protected outgoingOffset: number
 
   protected _startTime: Long
+  protected _receipt?: Buffer
 
   protected emittedEnd: boolean
   protected emittedClose: boolean
@@ -204,6 +205,17 @@ export class DataAndMoneyStream extends Duplex {
    */
   get startTime (): Long {
     return this._startTime
+  }
+
+  /**
+   * Latest receipt for total sent amount.
+   */
+  get receipt (): Buffer | undefined {
+    return this._receipt
+  }
+
+  set receipt (receipt: Buffer | undefined) {
+    this._receipt = receipt
   }
 
   /**
@@ -442,6 +454,7 @@ export class DataAndMoneyStream extends Duplex {
     this._totalSent = this._totalSent.add(amount)
     delete this.holds[holdId]
     this.log.trace('executed holdId: %s for: %s', holdId, amount)
+    this.emit('outgoing_money', amount.toString())
 
     if (this._totalSent.greaterThanOrEqual(this._sendMax)) {
       this.log.debug('outgoing total sent')

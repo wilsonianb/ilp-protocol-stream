@@ -1010,10 +1010,7 @@ export class Connection extends EventEmitter {
         this.exchangeRate!.reciprocal()
           .multiplyByLong(Long.MAX_UNSIGNED_VALUE))
     }
-    const sentAmounts: Map<DataAndMoneyStream, {
-      amount: Long,
-      receipt?: Buffer
-    }> = new Map()
+    const streamsSentFrom = []
     for (let [_, stream] of this.streams) {
       if (stream._sentEnd) {
         // TODO just remove closed streams?
@@ -1038,7 +1035,7 @@ export class Connection extends EventEmitter {
         requestPacket.frames.push(new StreamMoneyFrame(stream.id, amountToSendFromStream))
         amountToSend = amountToSend.add(amountToSendFromStream)
         maxAmountFromNextStream = maxAmountFromNextStream.subtract(amountToSendFromStream)
-        sentAmounts.set(stream, { amount: amountToSendFromStream })
+        streamsSentFrom.push(stream)
       }
 
       // Tell peer if they're blocking us from sending money
@@ -1139,23 +1136,15 @@ export class Connection extends EventEmitter {
           if (frame.type === FrameType.StreamReceipt) {
             const stream = this.streams.get(frame.streamId.toNumber())
             if (stream) {
-              const sentAmount = sentAmounts.get(stream)
-              if (sentAmount) {
-                sentAmount.receipt = frame.receipt
-              } else {
-                this.log.debug('received unexpected receipt for stream %d: %s', frame.streamId, frame.receipt)
-              }
+              stream.receipt = frame.receipt
             } else {
               this.log.debug('received receipt for unknown stream %d: %s', frame.streamId, frame.receipt)
             }
           }
         }
 
-        for (let [stream, { amount, receipt }] of sentAmounts) {
+        for (let stream of streamsSentFrom) {
           stream._executeHold(requestPacket.sequence.toString())
-          const destinationAmount = multiplyDivideFloor(
-            responsePacket.prepareAmount, amount, amountToSend)
-          stream.emit('outgoing_money', amount.toString(), destinationAmount.toString(), receipt)
         }
 
         // Update stats based on amount sent
