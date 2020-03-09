@@ -175,6 +175,20 @@ describe('Server', function () {
       assert.throws(() => this.server.generateAddressAndSecret({ connectionTag, receiptNonce }), 'receiptNonce and receiptSecret must accompany each other')
       assert.throws(() => this.server.generateAddressAndSecret({ connectionTag, receiptSecret }), 'receiptNonce and receiptSecret must accompany each other')
     })
+
+    it('should require 16 byte receipt nonce', async function () {
+      await this.server.listen()
+      const receiptNonce = Buffer.alloc(15)
+      const receiptSecret = Buffer.alloc(32)
+      assert.throws(() => this.server.generateAddressAndSecret({ receiptNonce, receiptSecret }), 'receiptNonce must be 16 bytes')
+    })
+
+    it('should require 32 byte receipt secret', async function () {
+      await this.server.listen()
+      const receiptNonce = Buffer.alloc(16)
+      const receiptSecret = Buffer.alloc(31)
+      assert.throws(() => this.server.generateAddressAndSecret({ receiptNonce, receiptSecret }), 'receiptSecret must be 32 bytes')
+    })
   })
 
   describe('close', function () {

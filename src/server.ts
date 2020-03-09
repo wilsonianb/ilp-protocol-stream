@@ -148,6 +148,10 @@ export class Server extends EventEmitter {
     }
     if (!receiptNonce !== !receiptSecret) {
       throw new Error('receiptNonce and receiptSecret must accompany each other')
+    } else if (receiptNonce && receiptNonce.length !== 16) {
+      throw new Error('receiptNonce must be 16 bytes')
+    } else if (receiptSecret && receiptSecret.length !== 32) {
+      throw new Error('receiptSecret must be 32 bytes')
     }
     let token = base64url(cryptoHelper.generateToken())
     if (connectionTag) {
