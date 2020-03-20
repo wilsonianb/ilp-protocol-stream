@@ -529,13 +529,12 @@ describe('Connection', function () {
     })
 
     it('should get a receipt for each fulfilled packet', async function () {
-      const spy = sinon.spy()
       let streamStartTime: Long
       this.serverConn.on('stream', async (serverStream: DataAndMoneyStream) => {
         streamStartTime = serverStream.startTime
       })
       const clientStream = this.clientConn.createStream()
-      sinon.stub(clientStream, 'receipt').set(spy)
+      const spy = sinon.spy(clientStream, '_setReceipt')
       await clientStream.sendTotal(1002)
 
       async function createReceipt(receiptNonce: Buffer, receiptSecret: Buffer, totalReceived: string): Promise<Buffer> {

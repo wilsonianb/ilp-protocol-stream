@@ -214,10 +214,6 @@ export class DataAndMoneyStream extends Duplex {
     return this._receipt
   }
 
-  set receipt (receipt: Buffer | undefined) {
-    this._receipt = receipt
-  }
-
   /**
    * Returns true if the stream is open for sending and/or receiving.
    */
@@ -695,6 +691,14 @@ export class DataAndMoneyStream extends Duplex {
       this.push(null)
       this.end()
     }
+  }
+
+  /**
+   * (Used by the Connection class but not meant to be part of the public API)
+   * @private
+   */
+  _setReceipt (receipt: Buffer): void {
+    this._receipt = receipt
   }
 
   protected safeEmit (event: string, ...args: any[]) {

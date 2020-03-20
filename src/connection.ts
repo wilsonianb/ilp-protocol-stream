@@ -1136,9 +1136,9 @@ export class Connection extends EventEmitter {
           if (frame.type === FrameType.StreamReceipt) {
             const stream = this.streams.get(frame.streamId.toNumber())
             if (stream) {
-              stream.receipt = frame.receipt
+              stream._setReceipt(frame.receipt)
             } else {
-              this.log.debug('received receipt for unknown stream %d: %s', frame.streamId, frame.receipt)
+              this.log.debug('received receipt for unknown stream %d: %h', frame.streamId, frame.receipt)
             }
           }
         }
@@ -1689,7 +1689,7 @@ export class Connection extends EventEmitter {
     const receipt = new Writer(65)
     receipt.writeOctetString(await cryptoHelper.hmac(this._receiptSecret, data.getBuffer()), 32)
     receipt.writeOctetString(data.getBuffer(), 33)
-    return Promise.resolve(receipt.getBuffer())
+    return receipt.getBuffer()
   }
 }
 
