@@ -54,6 +54,7 @@ const MAX_DATA_SIZE = 32767
 const DEFAULT_MAX_REMOTE_STREAMS = 10
 const DEFAULT_MINIMUM_EXCHANGE_RATE_PRECISION = 3
 const TEST_PACKET_MAX_ATTEMPTS = 20
+const RECEIPT_VERSION = 1
 
 export interface ConnectionOpts {
   /** Ledger plugin (V2) */
@@ -638,19 +639,16 @@ export class Connection extends EventEmitter {
     }
 
     // Add incoming amounts to each stream
-    const totalsReceived: Map<number, { totalReceived: string, startTime: Long }> = new Map()
+    const totalsReceived: Map<number, string> = new Map()
     for (let { stream, amount } of amountsToReceive) {
       stream._addToIncoming(amount)
-      totalsReceived.set(stream.id, {
-        totalReceived: stream.totalReceived,
-        startTime: stream.startTime
-      })
+      totalsReceived.set(stream.id, stream.totalReceived)
     }
 
     // Add receipt frame(s)
     if (this._receiptNonce) {
-      for (let [streamId, stream] of totalsReceived) {
-        responseFrames.push(new StreamReceiptFrame(streamId, await this.createReceipt(streamId, stream.totalReceived, stream.startTime)))
+      for (let [streamId, totalReceived] of totalsReceived) {
+        responseFrames.push(new StreamReceiptFrame(streamId, await this.createReceipt(streamId, totalReceived)))
       }
     }
 
@@ -1675,16 +1673,16 @@ export class Connection extends EventEmitter {
     }
   }
 
-  private async createReceipt (streamId: LongValue, totalReceived: LongValue, startTime: LongValue): Promise<Buffer> {
+  private async createReceipt (streamId: LongValue, totalReceived: LongValue): Promise<Buffer> {
     if (!this._receiptNonce || !this._receiptSecret) {
       throw new Error('Nonce and secret required to create receipt')
     }
 
-    const receipt = new Writer(65)
+    const receipt = new Writer(58)
+    receipt.writeUInt8(RECEIPT_VERSION)
     receipt.writeOctetString(this._receiptNonce, 16)
     receipt.writeUInt8(streamId)
     receipt.writeUInt64(longFromValue(totalReceived, true))
-    receipt.writeUInt64(longFromValue(startTime, true))
     receipt.writeOctetString(await cryptoHelper.hmac(this._receiptSecret, receipt.getBuffer()), 32)
     return receipt.getBuffer()
   }

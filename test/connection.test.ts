@@ -529,25 +529,25 @@ describe('Connection', function () {
     })
 
     it('should get a receipt for each fulfilled packet', async function () {
-      let streamStartTime: Long
-      this.serverConn.on('stream', async (serverStream: DataAndMoneyStream) => {
-        streamStartTime = serverStream.startTime
-      })
       const clientStream = this.clientConn.createStream()
       const spy = sinon.spy(clientStream, '_setReceipt')
       await clientStream.sendTotal(1002)
 
       async function createReceipt(receiptNonce: Buffer, receiptSecret: Buffer, totalReceived: string): Promise<Buffer> {
-        const receipt = new Writer(65)
+        const RECEIPT_VERSION = 1
+        const receipt = new Writer(58)
+        receipt.writeUInt8(RECEIPT_VERSION)
         receipt.writeOctetString(receiptNonce, 16)
         receipt.writeUInt8(clientStream.id)
         receipt.writeUInt64(longFromValue(totalReceived, true))
-        receipt.writeUInt64(longFromValue(streamStartTime, true))
         receipt.writeOctetString(await hmac(receiptSecret, receipt.getBuffer()), 32)
         return Promise.resolve(receipt.getBuffer())
       }
 
+      const receiptFixture = require('./fixtures/packets.json').find(({ name }: { name: string}) => name === 'frame:stream_receipt' ).packet.frames[0].receipt
+
       assert.calledTwice(spy)
+      assert.calledWith(spy.firstCall, receiptFixture)
       assert.calledWith(spy.firstCall, await createReceipt(this.receiptNonce, this.receiptSecret, '500'))
       assert.calledWith(spy.secondCall, await createReceipt(this.receiptNonce, this.receiptSecret, '501'))
     })

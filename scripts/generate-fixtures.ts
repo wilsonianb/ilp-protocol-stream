@@ -103,7 +103,8 @@ const variants = Array.prototype.concat.apply([], [
   })),
   {
     name: 'frame:stream_receipt',
-    frame: new Packet.StreamReceiptFrame(123, Buffer.alloc(65))
+    frame: new Packet.StreamReceiptFrame(1,
+      Buffer.from('AQAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAfTBIvoCUt67Zy1ZGCP3EOmVFtZzhc85fah8yPnoyL9RMA==', 'base64'))
   }
 ])
 
