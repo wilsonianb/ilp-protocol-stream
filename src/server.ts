@@ -1,12 +1,11 @@
 import { EventEmitter } from 'events'
 import * as IlpPacket from 'ilp-packet'
 import * as ILDCP from 'ilp-protocol-ildcp'
-import base64url from 'base64url'
 import createLogger from 'ilp-logger'
 import * as cryptoHelper from './crypto'
 import { Connection, ConnectionOpts } from './connection'
 import { ServerConnectionPool } from './pool'
-import { Reader, Writer } from 'oer-utils'
+import { Predictor, Writer } from 'oer-utils'
 import { Plugin } from './util/plugin-interface'
 
 const CONNECTION_ID_REGEX = /^[a-zA-Z0-9~_-]+$/
@@ -136,37 +135,45 @@ export class Server extends EventEmitter {
     if (!this.connected) {
       throw new Error('Server must be connected to generate address and secret')
     }
-    let connectionTag: string | undefined
-    let receiptNonce: Buffer | undefined
-    let receiptSecret: Buffer | undefined
-    if (typeof opts === 'object') {
-      connectionTag = opts.connectionTag
-      receiptNonce = opts.receiptNonce
-      receiptSecret = opts.receiptSecret
-    } else {
-      connectionTag = opts
-    }
-    if (!receiptNonce !== !receiptSecret) {
-      throw new Error('receiptNonce and receiptSecret must accompany each other')
-    } else if (receiptNonce && receiptNonce.length !== 16) {
-      throw new Error('receiptNonce must be 16 bytes')
-    } else if (receiptSecret && receiptSecret.length !== 32) {
-      throw new Error('receiptSecret must be 32 bytes')
-    }
     let token = base64url(cryptoHelper.generateToken())
-    if (connectionTag) {
-      if (!CONNECTION_ID_REGEX.test(connectionTag)) {
-        throw new Error('connectionTag can only include ASCII characters a-z, A-Z, 0-9, "_", "-", and "~"')
+    if (opts) {
+      let connectionTag = Buffer.alloc(0)
+      let receiptNonce = Buffer.alloc(0)
+      let receiptSecret = Buffer.alloc(0)
+      if (typeof opts === 'object') {
+        if (opts.connectionTag) {
+          connectionTag = Buffer.from(opts.connectionTag, 'ascii')
+        }
+        if (!opts.receiptNonce !== !opts.receiptSecret) {
+          throw new Error('receiptNonce and receiptSecret must accompany each other')
+        }
+        if (opts.receiptNonce) {
+          if (opts.receiptNonce.length !== 16) {
+            throw new Error('receiptNonce must be 16 bytes')
+          }
+          receiptNonce = opts.receiptNonce
+        }
+        if (opts.receiptSecret) {
+          if (opts.receiptSecret.length !== 32) {
+            throw new Error('receiptSecret must be 32 bytes')
+          }
+          receiptSecret = cryptoHelper.encryptReceiptSecret(this.serverSecret, opts.receiptSecret)
+        }
+      } else {
+        connectionTag = Buffer.from(opts, 'ascii')
       }
-      token = token + '~' + connectionTag
+      const predictor = new Predictor()
+      predictor.writeVarOctetString(connectionTag)
+      predictor.writeVarOctetString(receiptNonce)
+      predictor.writeVarOctetString(receiptSecret)
+      const writer = new Writer(predictor.length)
+      writer.writeVarOctetString(connectionTag)
+      writer.writeVarOctetString(receiptNonce)
+      writer.writeVarOctetString(receiptSecret)
+
+      token = token + '~' + base64url(writer.getBuffer())
     }
     const sharedSecret = cryptoHelper.generateSharedSecretFromToken(this.serverSecret, Buffer.from(token, 'ascii'))
-    if (receiptNonce && receiptSecret) {
-      const writer = new Writer(76)
-      writer.writeOctetString(receiptNonce, 16)
-      writer.writeOctetString(cryptoHelper.encryptReceiptSecret(this.serverSecret, receiptSecret), 60)
-      token = `${token}.${base64url(writer.getBuffer())}`
-    }
     return {
       // TODO should this be called serverAccount or serverAddress instead?
       destinationAccount: `${this.serverAccount}.${token}`,
@@ -207,8 +214,6 @@ export class Server extends EventEmitter {
       }
 
       const localAddressParts = prepare.destination.replace(this.serverAccount + '.', '').split('.')
-      let receiptNonce: Buffer | undefined
-      let receiptSecret: Buffer | undefined
       if (localAddressParts.length === 0 || !localAddressParts[0]) {
         this.log.error('destination in ILP Prepare packet does not have a Connection ID: %s', prepare.destination)
         /* Why no error message here?
@@ -219,14 +224,10 @@ export class Server extends EventEmitter {
         in a packet and seeing what error message you get back.
         Apologies if this caused additional debugging time for you! */
         throw new IlpPacket.Errors.UnreachableError('')
-      } else if (localAddressParts.length === 2) {
-        const reader = new Reader(base64url.toBuffer(localAddressParts[1]))
-        receiptNonce = reader.readOctetString(16)
-        receiptSecret = cryptoHelper.decryptReceiptSecret(this.serverSecret, reader.readOctetString(60))
       }
       const connectionId = localAddressParts[0]
 
-      const connection = await this.pool.getConnection(connectionId, prepare, receiptNonce, receiptSecret)
+      const connection = await this.pool.getConnection(connectionId, prepare)
         .catch((_err: Error) => {
           // See "Why no error message here?" note above
           throw new IlpPacket.Errors.UnreachableError('')
@@ -255,4 +256,11 @@ export async function createServer (opts: ServerOpts): Promise<Server> {
   const server = new Server(opts)
   await server.listen()
   return server
+}
+
+function base64url (buffer: Buffer) {
+  return buffer.toString('base64')
+    .replace(/=+$/, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
 }
