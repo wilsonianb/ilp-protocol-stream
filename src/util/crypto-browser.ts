@@ -134,12 +134,12 @@ export function generateSharedSecretFromToken (seed: Buffer, token: Buffer): Buf
 
 // Dummy function to make typescript happy. This function is only ever used by
 // the server, which is not included in the browser build.
-export function encryptReceiptSecret (seed: Buffer, receiptSecret: Buffer): Buffer {
+export function encryptToken (seed: Buffer, token: Buffer): Buffer {
   throw new Error('unreachable in browser')
 }
 
 // Dummy function to make typescript happy. This function is only ever used by
 // the server, which is not included in the browser build.
-export function decryptReceiptSecret (seed: Buffer, receiptSecret: Buffer): Buffer {
+export function decryptToken (seed: Buffer, token: Buffer): Buffer {
   throw new Error('unreachable in browser')
 }

@@ -8,8 +8,6 @@ import { ServerConnectionPool } from './pool'
 import { Predictor, Writer } from 'oer-utils'
 import { Plugin } from './util/plugin-interface'
 
-const CONNECTION_ID_REGEX = /^[a-zA-Z0-9~_-]+$/
-
 export interface ServerOpts extends ConnectionOpts {
   serverSecret?: Buffer
 }
@@ -135,12 +133,11 @@ export class Server extends EventEmitter {
     if (!this.connected) {
       throw new Error('Server must be connected to generate address and secret')
     }
-    let token = base64url(cryptoHelper.generateToken())
+    let connectionTag = Buffer.alloc(0)
+    let receiptNonce = Buffer.alloc(0)
+    let receiptSecret = Buffer.alloc(0)
     let receipts = false
     if (opts) {
-      let connectionTag = Buffer.alloc(0)
-      let receiptNonce = Buffer.alloc(0)
-      let receiptSecret = Buffer.alloc(0)
       if (typeof opts === 'object') {
         if (opts.connectionTag) {
           connectionTag = Buffer.from(opts.connectionTag, 'ascii')
@@ -159,26 +156,29 @@ export class Server extends EventEmitter {
           if (opts.receiptSecret.length !== 32) {
             throw new Error('receiptSecret must be 32 bytes')
           }
-          receiptSecret = cryptoHelper.encryptReceiptSecret(this.serverSecret, opts.receiptSecret)
+          receiptSecret = opts.receiptSecret
         }
       } else {
         connectionTag = Buffer.from(opts, 'ascii')
       }
-      const predictor = new Predictor()
-      predictor.writeVarOctetString(connectionTag)
-      predictor.writeVarOctetString(receiptNonce)
-      predictor.writeVarOctetString(receiptSecret)
-      const writer = new Writer(predictor.length)
-      writer.writeVarOctetString(connectionTag)
-      writer.writeVarOctetString(receiptNonce)
-      writer.writeVarOctetString(receiptSecret)
-
-      token = token + '~' + base64url(writer.getBuffer())
     }
-    const sharedSecret = cryptoHelper.generateSharedSecretFromToken(this.serverSecret, Buffer.from(token, 'ascii'))
+    let token = cryptoHelper.generateToken()
+    const predictor = new Predictor()
+    predictor.writeOctetString(token, cryptoHelper.TOKEN_LENGTH)
+    predictor.writeVarOctetString(connectionTag)
+    predictor.writeVarOctetString(receiptNonce)
+    predictor.writeVarOctetString(receiptSecret)
+    const writer = new Writer(predictor.length)
+    writer.writeOctetString(token, cryptoHelper.TOKEN_LENGTH)
+    writer.writeVarOctetString(connectionTag)
+    writer.writeVarOctetString(receiptNonce)
+    writer.writeVarOctetString(receiptSecret)
+
+    token = cryptoHelper.encryptToken(this.serverSecret, writer.getBuffer())
+    const sharedSecret = cryptoHelper.generateSharedSecretFromToken(this.serverSecret, token)
     return {
       // TODO should this be called serverAccount or serverAddress instead?
-      destinationAccount: `${this.serverAccount}.${token}`,
+      destinationAccount: `${this.serverAccount}.${base64url(token)}`,
       sharedSecret,
       receipts
     }

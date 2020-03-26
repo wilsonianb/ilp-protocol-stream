@@ -53,37 +53,38 @@ export class ServerConnectionPool {
     if (pendingConnection) return pendingConnection
 
     const connectionPromise = (async () => {
-      const sharedSecret = await this.getSharedSecret(id, prepare)
+      const token = decodeBase64url(id)
+      const sharedSecret = await this.getSharedSecret(token, prepare)
       // If we get here, that means it was a token + sharedSecret we created
       let connectionTag: string | undefined
       let receiptNonce: Buffer | undefined
       let receiptSecret: Buffer | undefined
-      const tilde = id.indexOf('~')
-      if (tilde !== -1) {
-        const reader = new Reader(decodeBase64url(id.slice(tilde + 1)))
-        if (reader.peekVarOctetString().length) {
-          connectionTag = reader.readVarOctetString().toString('ascii')
-        } else {
+      const reader = new Reader(cryptoHelper.decryptToken(this.serverSecret, token))
+      reader.skipOctetString(cryptoHelper.TOKEN_LENGTH)
+      if (reader.peekVarOctetString().length) {
+        connectionTag = reader.readVarOctetString().toString('ascii')
+      } else {
+        reader.skipVarOctetString()
+      }
+      switch (reader.peekVarOctetString().length) {
+        case 0:
           reader.skipVarOctetString()
-        }
-        switch (reader.peekVarOctetString().length) {
-          case 0:
-            reader.skipVarOctetString()
-            break
-          case 16:
-            receiptNonce = reader.readVarOctetString()
-            break
-          default:
-            throw new Error('receiptNonce must be 16 bytes')
-        }
-        if (reader.peekVarOctetString().length) {
-          receiptSecret = cryptoHelper.decryptReceiptSecret(this.serverSecret, reader.readVarOctetString())
-          if (receiptSecret.length !== 32) {
-            throw new Error('receiptSecret must be 32 bytes')
-          }
-        } else {
+          break
+        case 16:
+          receiptNonce = reader.readVarOctetString()
+          break
+        default:
+          throw new Error('receiptNonce must be 16 bytes')
+      }
+      switch (reader.peekVarOctetString().length) {
+        case 0:
           reader.skipVarOctetString()
-        }
+          break
+        case 32:
+          receiptSecret = reader.readVarOctetString()
+          break
+        default:
+          throw new Error('receiptSecret must be 32 bytes')
       }
       const conn = await Connection.build({
         ...this.connectionOpts,
@@ -122,11 +123,10 @@ export class ServerConnectionPool {
   }
 
   private async getSharedSecret (
-    id: string,
+    token: Buffer,
     prepare: IlpPacket.IlpPrepare
   ): Promise<Buffer> {
     try {
-      const token = Buffer.from(id, 'ascii')
       const sharedSecret = cryptoHelper.generateSharedSecretFromToken(
         this.serverSecret, token)
       // TODO just pass this into the connection?

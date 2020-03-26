@@ -67,10 +67,10 @@ export function generateSharedSecretFromToken (seed: Buffer, token: Buffer): Buf
   return sharedSecret
 }
 
-export function encryptReceiptSecret (seed: Buffer, receiptSecret: Buffer): Buffer {
-  return encryptSync(seed, receiptSecret)
+export function encryptToken (seed: Buffer, token: Buffer): Buffer {
+  return encryptSync(seed, token)
 }
 
-export function decryptReceiptSecret (seed: Buffer, receiptSecret: Buffer): Buffer {
-  return decryptSync(seed, receiptSecret)
+export function decryptToken (seed: Buffer, token: Buffer): Buffer {
+  return decryptSync(seed, token)
 }
