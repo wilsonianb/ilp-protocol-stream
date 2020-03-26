@@ -65,6 +65,20 @@ describe('Server', function () {
       assert.typeOf(result.destinationAccount, 'string')
     })
 
+    it('should return a whether or not the connection will have receipts', async function () {
+      await this.server.listen()
+
+      let result = this.server.generateAddressAndSecret()
+      assert.typeOf(result.receipts, 'boolean')
+      assert.equal(result.receipts, false)
+
+      const receiptNonce = Buffer.alloc(16)
+      const receiptSecret = Buffer.alloc(32)
+      result = this.server.generateAddressAndSecret({ receiptNonce, receiptSecret })
+      assert.typeOf(result.receipts, 'boolean')
+      assert.equal(result.receipts, true)
+    })
+
     it('should accept connections created without options', async function () {
       await this.server.listen()
       const { destinationAccount, sharedSecret } = this.server.generateAddressAndSecret()

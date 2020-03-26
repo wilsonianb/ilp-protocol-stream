@@ -76,15 +76,13 @@ export class ServerConnectionPool {
           default:
             throw new Error('receiptNonce must be 16 bytes')
         }
-        switch (reader.peekVarOctetString().length) {
-          case 0:
-            reader.skipVarOctetString()
-            break
-          case 32:
-            receiptSecret = cryptoHelper.decryptReceiptSecret(this.serverSecret, reader.readVarOctetString())
-            break
-          default:
+        if (reader.peekVarOctetString().length) {
+          receiptSecret = cryptoHelper.decryptReceiptSecret(this.serverSecret, reader.readVarOctetString())
+          if (receiptSecret.length !== 32) {
             throw new Error('receiptSecret must be 32 bytes')
+          }
+        } else {
+          reader.skipVarOctetString()
         }
       }
       const conn = await Connection.build({

@@ -131,11 +131,12 @@ export class Server extends EventEmitter {
    * @param receiptNonce Optional nonce to include in STREAM receipts
    * @param receiptSecret Optional secret to use for signing STREAM receipts
    */
-  generateAddressAndSecret (opts?: string | GenerateAddressSecretOpts): { destinationAccount: string, sharedSecret: Buffer } {
+  generateAddressAndSecret (opts?: string | GenerateAddressSecretOpts): { destinationAccount: string, sharedSecret: Buffer, receipts: boolean } {
     if (!this.connected) {
       throw new Error('Server must be connected to generate address and secret')
     }
     let token = base64url(cryptoHelper.generateToken())
+    let receipts = false
     if (opts) {
       let connectionTag = Buffer.alloc(0)
       let receiptNonce = Buffer.alloc(0)
@@ -151,6 +152,7 @@ export class Server extends EventEmitter {
           if (opts.receiptNonce.length !== 16) {
             throw new Error('receiptNonce must be 16 bytes')
           }
+          receipts = true
           receiptNonce = opts.receiptNonce
         }
         if (opts.receiptSecret) {
@@ -177,7 +179,8 @@ export class Server extends EventEmitter {
     return {
       // TODO should this be called serverAccount or serverAddress instead?
       destinationAccount: `${this.serverAccount}.${token}`,
-      sharedSecret
+      sharedSecret,
+      receipts
     }
   }
 
