@@ -65,7 +65,7 @@ describe('Server', function () {
       assert.typeOf(result.destinationAccount, 'string')
     })
 
-    it('should return a whether or not the connection will have receipts', async function () {
+    it('should return whether or not the connection will have receipts', async function () {
       await this.server.listen()
 
       let result = this.server.generateAddressAndSecret()
