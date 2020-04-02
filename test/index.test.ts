@@ -69,14 +69,14 @@ describe('Server', function () {
       await this.server.listen()
 
       let result = this.server.generateAddressAndSecret()
-      assert.typeOf(result.receipts, 'boolean')
-      assert.equal(result.receipts, false)
+      assert.typeOf(result.receiptsEnabled, 'boolean')
+      assert.equal(result.receiptsEnabled, false)
 
       const receiptNonce = Buffer.alloc(16)
       const receiptSecret = Buffer.alloc(32)
       result = this.server.generateAddressAndSecret({ receiptNonce, receiptSecret })
-      assert.typeOf(result.receipts, 'boolean')
-      assert.equal(result.receipts, true)
+      assert.typeOf(result.receiptsEnabled, 'boolean')
+      assert.equal(result.receiptsEnabled, true)
     })
 
     it('should accept connections created without options', async function () {
